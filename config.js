@@ -34,7 +34,7 @@ const config = (ppVals,cssExtract)=>{
       , preLoaders: [
         {
           test: /\.(jsx?|es6)$/
-        , exclude: /node_modules\/(?!\@react-component)|lib/
+        , exclude: /node_modules/
         , loader: "eslint-loader"
         , query: {
             parser: 'babel-eslint'
@@ -59,21 +59,21 @@ const config = (ppVals,cssExtract)=>{
             }
           , plugins: [
               'babel'
-            , 'react'
-            , 'jsx-control-statements'
+            // , 'react'
+            // , 'jsx-control-statements'
             ]
           , extends: [
-            , "eslint:recommended"
-            , "plugin:react/recommended"
-            , 'plugin:jsx-control-statements/recommended'
+              "eslint:recommended"
+            // , "plugin:react/recommended"
+            // , 'plugin:jsx-control-statements/recommended'
             ]
           , parserOptions: {
               ecmaVersion: 7
             , sourceType: 'module'
-            , ecmaFeatures: {
-                'jsx': true
-              }
-            }
+            // , ecmaFeatures: {
+            //     'jsx': true
+            //   }
+            // }
           }
         }
       ].concat(ENV==='production'?[]:[
@@ -90,44 +90,42 @@ const config = (ppVals,cssExtract)=>{
       ])
     , loaders: [
         {
-          test: /\.(jsx?|es6)$/
+          test: /\.jsx?$/
         , exclude: /node_modules\/(?!\@react-component)/
         , loader: 'babel?'+JSON.stringify({
-            presets: ['es2015','stage-1','react']
+            presets: [
+                'es2015','stage-1'
+              // , 'react'
+            ]
           , plugins: [
               ["transform-replace-object-assign", "simple-assign"]
             , "transform-dev-warning"
             , "add-module-exports"
             , "transform-decorators-legacy"
-            , "jsx-control-statements"
+            // , "jsx-control-statements"
             ]
           })+'!preprocess?'+JSON.stringify({ppOptions:{type:'js'},...ppVals})
         }
       , { test: /\.json$/, loaders: ["json-loader"]}
-      , {
-          test: /\.html$/
-        , exclude: /node_modules/
-        , loaders: [require.resolve("vulcanize-loader")+"?compress=true&base=./modules",'preprocess?'+JSON.stringify({ppOptions:{type:'html'},...ppVals})]
-        }
-      , {
-          test: /\.(s[ac]ss|css)$/
-        , loader: ENV==='production'?(cssExtract?cssExtract.extract(...cssLoader)
-                                                :cssLoader.join("!"))
-                  :(cssExtract?cssExtract.extract(...cssLoaderSourceMaps)
-                                                :cssLoaderSourceMaps.join("!"))
-        }
-      , {
-          test: /\.(jpg|png|gif)$/
-        , loader: require.resolve("file-loader") + "?name=images/[name].[ext]"
-        }
-      , {
-          test: /\.(ttf|eot|svg)(\?v=[0-9]\.[0-9]\.[0-9])?$/
-        , loader: require.resolve("file-loader") + "?name=fonts/[name].[ext]"
-        }
-      , {
-          test: /\.woff\d?(\?v=[0-9]\.[0-9]\.[0-9])?$/,
-          loader: require.resolve("url-loader") + '?limit=100000'
-        }
+      // , {
+      //     test: /\.(s[ac]ss|css)$/
+      //   , loader: ENV==='production'?(cssExtract?cssExtract.extract(...cssLoader)
+      //                                           :cssLoader.join("!"))
+      //             :(cssExtract?cssExtract.extract(...cssLoaderSourceMaps)
+      //                                           :cssLoaderSourceMaps.join("!"))
+      //   }
+      // , {
+      //     test: /\.(jpg|png|gif)$/
+      //   , loader: require.resolve("file-loader") + "?name=images/[name].[ext]"
+      //   }
+      // , {
+      //     test: /\.(ttf|eot|svg)(\?v=[0-9]\.[0-9]\.[0-9])?$/
+      //   , loader: require.resolve("file-loader") + "?name=fonts/[name].[ext]"
+      //   }
+      // , {
+      //     test: /\.woff\d?(\?v=[0-9]\.[0-9]\.[0-9])?$/,
+      //     loader: require.resolve("url-loader") + '?limit=100000'
+      //   }
       ]
     }
   , stats: { colors: true }
