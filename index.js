@@ -1,24 +1,237 @@
-// import PrivateProperties from './private.js';
 
-module.exports=function (opts) {
-  var Plugin = opts.Plugin;
-  var types = opts.types;
-  return {visitor: {
-      FunctionDeclaration: function (node, parent) {
-        // new PrivateProperties(t).run(node);
-      	console.log("Entered function declaration.");
-      },
-      // PropertyDeclaration: function (node,parent) {
-      // 	console.log("Entered property declaration.");
-      // },
-      Identifier: {
-      	enter: function() {
-      		console.log("Entered: ",arguments)
-      	},
-      	exit: function() {
-      		console.log("Exit: ",arguments)
-      	}
+export default function({types: t}) {
+
+  return {
+      // inherits: require('babel-plugin-transform-class-properties')
+    visitor: {
+      Program(path) {
+        path.traverse({
+          Class(path) {
+            let isSubClass = !!path.node.superClass;
+            let constructor;
+            let props = [];
+            let body = path.get("body");
+            let privateDecorator=null;
+            let instanceBody = [];
+            const refs = [];
+            for (let subPath of body.get("body")) {
+              if (subPath.isClassMethod({ kind: "constructor" })) {
+                constructor = subPath;
+              } else if (subPath.isClassMethod() && (privateDecorator=findPrivateDecorator(subPath.node))!==false) {
+                path.insertBefore(t.variableDeclaration('var',[t.variableDeclarator(
+                    t.Identifier(subPath.node.key.name),t.newExpression(t.Identifier('WeakMap'),[])
+                )]
+                ));
+                subPath.node.decorators.splice(privateDecorator, 1);
+                // move into constructor
+                instanceBody.push(
+                  t.expressionStatement(
+                    t.callExpression(
+                      t.memberExpression(
+                        t.Identifier(subPath.node.key.name)
+                      , t.Identifier('set')
+                      )
+                    , [
+                        t.thisExpression()
+                      , t.functionExpression(
+                          t.Identifier('')
+                        , subPath.node.params
+                        , subPath.node.body
+                        )
+                      ]
+                    )
+                  )
+                );
+                refs.push(subPath.node.key.name);
+                subPath.remove();
+              } else if (subPath.isClassProperty() && subPath.node.decorators && subPath.node.decorators.length > 0) {
+                let propNode = subPath.node;
+                const privateDecorator=findPrivateDecorator(propNode);
+                if (privateDecorator===false) continue;
+                path.insertBefore(
+                  t.variableDeclaration(
+                    'var'
+                  , [
+                      t.variableDeclarator(
+                        t.Identifier(propNode.key.name)
+                      , t.newExpression(t.Identifier('WeakMap'),[])
+                      )
+                    ]
+                  )
+                );
+                refs.push(propNode.key.name);
+                if (propNode.value) {
+                  instanceBody.push(
+                    t.expressionStatement(
+                      t.callExpression(
+                        t.memberExpression(
+                          t.Identifier(propNode.key.name)
+                        , t.Identifier('set')
+                        )
+                      , [
+                          t.thisExpression()
+                        , propNode.value
+                        ]
+                      )
+                    )
+                  );
+                }
+                subPath.remove();
+              }
+            }
+
+            if (instanceBody.length) {
+              if (!constructor) {
+                let newConstructor = t.classMethod("constructor", t.identifier("constructor"), [], t.blockStatement([]));
+                if (isSubClass) {
+                  newConstructor.params = [t.restElement(t.identifier("args"))];
+                  newConstructor.body.body.push(
+                    t.returnStatement(
+                      t.callExpression(
+                        t.super()
+                      , [t.spreadElement(t.identifier("args"))]
+                      )
+                    )
+                  );
+                }
+                [constructor] = body.unshiftContainer("body", newConstructor);
+              }
+              for (let node of body.get("body")) {
+                node.traverse({
+                  ThisExpression(path) {
+                    handleRefItems(t,node,path,refs,t.thisExpression())
+                  }
+                });
+              }
+              if (isSubClass) {
+                let Supers = [];
+                constructor.traverse({Super(path) {
+                  if (path.parentPath.isCallExpression({ callee: path.node })) {
+                    this.push(path.parentPath);
+                  }
+                }}, Supers);
+                for (let Super of Supers) {
+                  Super.insertAfter(instanceBody);
+                }
+              } else {
+                constructor.get("body").unshiftContainer("body", instanceBody);
+              }
+            }
+          }
+        });
       }
     }
-  };
+  }
+}
+
+function handleRefItems(t,node,path,refs,refExp) {
+  if (path.parentPath.type==='MemberExpression') {
+    if (refs.indexOf(path.parent.property.name)==-1) return;
+    if (path.parentPath.parentPath.type=="AssignmentExpression") {
+      if (path.parentPath.parent.left.type=="MemberExpression") {
+        // console.log("Writing setter ",path.parentPath.parent.left.property.name)
+        path.parentPath.parentPath.parentPath.replaceWith(t.expressionStatement(
+          t.callExpression(
+            t.memberExpression(
+              t.Identifier(path.parentPath.parent.left.property.name)
+            , t.Identifier('set')
+            )
+          , [
+              path.node
+            , path.parentPath.parent.right
+            ]
+          )
+        ));
+      } else {
+        // console.log("Writing getter ",path.parentPath.parent.left.property.name)
+        path.parentPath.replaceWith(t.callExpression(
+          t.memberExpression(
+            t.Identifier(path.parent.property.name)
+          , t.Identifier('get')
+          )
+        , [
+            refExp
+          ]
+        ));
+      }
+    } else {
+        // console.log("Writing getter ",path.parent.property.name)
+        path.parentPath.replaceWith(t.callExpression(
+          t.memberExpression(
+            t.Identifier(path.parent.property.name)
+          , t.Identifier('get')
+          )
+        , [
+            refExp
+          ]
+        ));
+    }
+  } else {
+    // TODO: Handle non "var" assignment. if "x=this" and x is not defined in a "var" then following it fails.
+    if (path.parent.type=="AssignmentExpression") {
+      if (path.parent.left.type!=='ThisExpression') {
+        if (path.scope.hasOwnBinding(path.parent.left.name)) {
+          node.traverse({
+            ReferencedIdentifier(p) {
+              if (this.scope.hasOwnBinding(path.node.name)) {
+                handleRefItems(t,node,path,refs,path.node);
+              }
+            }}
+          , {
+              scope: path.parentPath.scope
+            }
+          );
+        }
+      }
+    }
+    if (path.parent.type=="VariableDeclarator") {
+      node.traverse({
+        ReferencedIdentifier(path) {
+          if (this.scope.hasOwnBinding(path.node.name)) {
+            handleRefItems(t,node,path,refs,path.node);
+          }
+        }}
+      , {
+          scope: path.parentPath.scope
+        }
+      );
+    }
+  }
+
+}
+
+function findPrivateDecorator(node) {
+  var idx=0;
+  return (node.decorators || []).some((decorator) => {
+    return decorator.expression.name === 'Private'||(++idx&&false);
+  })?idx:false;
+}
+
+function deleteDecorators(klass, decorators) {
+  decorators.forEach((decorator) => {
+    var index = klass.decorators.indexOf(decorator);
+    if (index >= 0) {
+    }
+  });
+}
+
+function cleanJSON (...fields) {
+  var objs=[];
+  var fields = [
+          'loc',
+          'parent',
+          'hub',
+          'contexts',
+          'opts',
+          'parentPath',
+          'container',
+          'parentKey',
+          'parentBlock',
+        ].concat(fields);
+  return function(k,v) {
+    if (fields.indexOf(k)>=0) return "[Object]";
+      if (objs.indexOf(v)>=0) return "[Circular Reference]";
+      if (typeof v === typeof({}) || typeof v === typeof([])) objs.push(v);
+      return v;
+    }
 }

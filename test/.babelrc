@@ -1,3 +1,4 @@
+
 {
 	"sourceMaps": false,
         "presets": ['es2015','stage-1']
@@ -6,5 +7,6 @@
           , "transform-dev-warning"
           , "add-module-exports"
           , "transform-decorators-legacy"
+          , "../dist/index.js"
         ]
 }
