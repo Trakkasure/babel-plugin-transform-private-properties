@@ -99,7 +99,7 @@ export default function({types: t}) {
               for (let node of body.get("body")) {
                 node.traverse({
                   ThisExpression(path) {
-                    handleRefItems(t,node,path,refs,t.thisExpression())
+                    handleRefItems(t,node,path,refs,t.thisExpression(),[])
                   }
                 });
               }
@@ -124,7 +124,7 @@ export default function({types: t}) {
   }
 }
 
-function handleRefItems(t,node,path,refs,refExp) {
+function handleRefItems(t,node,path,refs,refExp,known_vars) {
   if (path.parentPath.type==='MemberExpression') {
     if (refs.indexOf(path.parent.property.name)==-1) return;
     if (path.parentPath.parentPath.type=="AssignmentExpression") {
@@ -169,26 +169,41 @@ function handleRefItems(t,node,path,refs,refExp) {
   } else {
     // TODO: Handle non "var" assignment. if "x=this" and x is not defined in a "var" then following it fails.
     if (path.parent.type=="AssignmentExpression") {
-      if (path.parent.left.type!=='ThisExpression') {
-        if (path.scope.hasOwnBinding(path.parent.left.name)) {
-          node.traverse({
-            ReferencedIdentifier(p) {
-              if (this.scope.hasOwnBinding(path.node.name)) {
-                handleRefItems(t,node,path,refs,path.node);
-              }
-            }}
-          , {
-              scope: path.parentPath.scope
+      if (path.scope.hasOwnBinding(path.parent.left.name) ) {
+        node.traverse({
+          ReferencedIdentifier(path) {
+            if (this.scope.hasOwnBinding(path.node.name) && known_vars.indexOf(path.node.name)==-1) {
+              known_vars.push(path.node.name);
+              handleRefItems(t,node,path,refs,path.node,known_vars);
             }
-          );
-        }
+          }}
+        , {
+            scope: path.parentPath.scope
+          }
+        );
+      } else {
+        const id=path.parent.left;
+        console.log("Traversing",id);
+        node.traverse({
+          ReferencedIdentifier(p) {
+            console.log(JSON.stringify(p.parent,cleanJSON(),4));
+            if (path.node.name!==this.left.name && path.node.name!==this.right.name) return;
+            handleRefItems(t,node,p,refs,p.node,known_vars);
+          }}
+        , {
+            scope: path.scope
+          , left: path.parent.left
+          , right: path.parent.right
+          }
+        );
       }
-    }
+    } else
     if (path.parent.type=="VariableDeclarator") {
       node.traverse({
         ReferencedIdentifier(path) {
           if (this.scope.hasOwnBinding(path.node.name)) {
-            handleRefItems(t,node,path,refs,path.node);
+            // known_vars.push(path.node.name);
+            handleRefItems(t,node,path,refs,path.node,known_vars);
           }
         }}
       , {

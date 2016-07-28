@@ -25,6 +25,17 @@
 
 		me.j = 8;
 
+		self = me;
+
+		self.p = me.p;
+
+		const otherFunc = function(){	
+			var self2=this; // need to handle this situation three shouldn't == p.get(self2)
+			var self3=self;
+			var two = self3.p;
+			var three=self2.p;
+		}
+
 	}
 
 	@Private
@@ -54,6 +65,7 @@ const test = new TestClass();
 
 runWith('outside');
 
+console.log("Number should be 7");
 test.func2();
 
 try {
