@@ -21,7 +21,7 @@
     "babel-preset-stage-1": "^6.5.0",
     "mocha": ">=1.7.4",
     "simple-assign": "^0.1.0",
-    "uglify-js": ">=1.2.5",
+    "uglify-js": ">=1.2.5"
   },
   "author": "",
   "license": "ISC"
