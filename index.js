@@ -13,13 +13,14 @@ export default function({types: t}) {
             let body = path.get("body");
             let privateDecorator=null;
             let instanceBody = [];
-            const refs = [];
+            const refs = {};
             for (let subPath of body.get("body")) {
               if (subPath.isClassMethod({ kind: "constructor" })) {
                 constructor = subPath;
               } else if (subPath.isClassMethod() && (privateDecorator=findPrivateDecorator(subPath.node))!==false) {
+                const id=refs[subPath.node.key.name]||path.scope.generateUidIdentifier(subPath.node.key.name);
                 path.insertBefore(t.variableDeclaration('var',[t.variableDeclarator(
-                    t.Identifier(subPath.node.key.name),t.newExpression(t.Identifier('WeakMap'),[])
+                    id,t.newExpression(t.Identifier('WeakMap'),[])
                 )]
                 ));
                 subPath.node.decorators.splice(privateDecorator, 1);
@@ -28,7 +29,7 @@ export default function({types: t}) {
                   t.expressionStatement(
                     t.callExpression(
                       t.memberExpression(
-                        t.Identifier(subPath.node.key.name)
+                        id
                       , t.Identifier('set')
                       )
                     , [
@@ -42,30 +43,31 @@ export default function({types: t}) {
                     )
                   )
                 );
-                refs.push(subPath.node.key.name);
+                refs[subPath.node.key.name]=id;
                 subPath.remove();
               } else if (subPath.isClassProperty() && subPath.node.decorators && subPath.node.decorators.length > 0) {
                 let propNode = subPath.node;
                 const privateDecorator=findPrivateDecorator(propNode);
+                const id=refs[propNode.key.name]||path.scope.generateUidIdentifier(propNode.key.name);
                 if (privateDecorator===false) continue;
                 path.insertBefore(
                   t.variableDeclaration(
                     'var'
                   , [
                       t.variableDeclarator(
-                        t.Identifier(propNode.key.name)
+                        id
                       , t.newExpression(t.Identifier('WeakMap'),[])
                       )
                     ]
                   )
                 );
-                refs.push(propNode.key.name);
+                refs[propNode.key.name]=id;
                 if (propNode.value) {
                   instanceBody.push(
                     t.expressionStatement(
                       t.callExpression(
                         t.memberExpression(
-                          t.Identifier(propNode.key.name)
+                          id
                         , t.Identifier('set')
                         )
                       , [
@@ -126,14 +128,15 @@ export default function({types: t}) {
 
 function handleRefItems(t,node,path,refs,refExp,known_vars) {
   if (path.parentPath.type==='MemberExpression') {
-    if (refs.indexOf(path.parent.property.name)==-1) return;
+    if (!refs[path.parent.property.name]) return;
     if (path.parentPath.parentPath.type=="AssignmentExpression") {
       if (path.parentPath.parent.left.type=="MemberExpression") {
         // console.log("Writing setter ",path.parentPath.parent.left.property.name)
+        const id=refs[path.parentPath.parent.left.property.name]||path.scope.generateUidIdentifier(path.parentPath.parent.left.property.name);
         path.parentPath.parentPath.parentPath.replaceWith(t.expressionStatement(
           t.callExpression(
             t.memberExpression(
-              t.Identifier(path.parentPath.parent.left.property.name)
+              id
             , t.Identifier('set')
             )
           , [
@@ -144,9 +147,11 @@ function handleRefItems(t,node,path,refs,refExp,known_vars) {
         ));
       } else {
         // console.log("Writing getter ",path.parentPath.parent.left.property.name)
+        const id=refs[path.parent.property.name]||path.scope.generateUidIdentifier(path.parent.property.name);
+
         path.parentPath.replaceWith(t.callExpression(
           t.memberExpression(
-            t.Identifier(path.parent.property.name)
+            id
           , t.Identifier('get')
           )
         , [
@@ -156,9 +161,10 @@ function handleRefItems(t,node,path,refs,refExp,known_vars) {
       }
     } else {
         // console.log("Writing getter ",path.parent.property.name)
+        const id=refs[path.parent.property.name]||path.scope.generateUidIdentifier(path.parent.property.name);
         path.parentPath.replaceWith(t.callExpression(
           t.memberExpression(
-            t.Identifier(path.parent.property.name)
+            id
           , t.Identifier('get')
           )
         , [
