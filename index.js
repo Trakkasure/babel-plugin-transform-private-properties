@@ -2,11 +2,11 @@
 export default function({types: t}) {
 
   return {
-      // inherits: require('babel-plugin-transform-class-properties')
     visitor: {
       Program(path) {
         path.traverse({
           Class(path) {
+            let insertPath = path.parentPath.type === 'ExportNamedDeclaration'||path.parentPath.type==='ExportDefaultDeclaration'?path.parentPath:path;
             let isSubClass = !!path.node.superClass;
             let constructor;
             let props = [];
@@ -19,7 +19,7 @@ export default function({types: t}) {
                 constructor = subPath;
               } else if (subPath.isClassMethod() && (privateDecorator=findPrivateDecorator(subPath.node))!==false) {
                 const id=refs[subPath.node.key.name]||path.scope.generateUidIdentifier(subPath.node.key.name);
-                path.insertBefore(t.variableDeclaration('var',[t.variableDeclarator(
+                insertPath.insertBefore(t.variableDeclaration('var',[t.variableDeclarator(
                     id,t.newExpression(t.Identifier('WeakMap'),[])
                 )]
                 ));
@@ -50,7 +50,7 @@ export default function({types: t}) {
                 const privateDecorator=findPrivateDecorator(propNode);
                 const id=refs[propNode.key.name]||path.scope.generateUidIdentifier(propNode.key.name);
                 if (privateDecorator===false) continue;
-                path.insertBefore(
+                insertPath.insertBefore(
                   t.variableDeclaration(
                     'var'
                   , [
@@ -236,23 +236,4 @@ function deleteDecorators(klass, decorators) {
   });
 }
 
-function cleanJSON (...fields) {
-  var objs=[];
-  var fields = [
-          'loc',
-          'parent',
-          'hub',
-          'contexts',
-          'opts',
-          'parentPath',
-          'container',
-          'parentKey',
-          'parentBlock',
-        ].concat(fields);
-  return function(k,v) {
-    if (fields.indexOf(k)>=0) return "[Object]";
-      if (objs.indexOf(v)>=0) return "[Circular Reference]";
-      if (typeof v === typeof({}) || typeof v === typeof([])) objs.push(v);
-      return v;
-    }
-}
+

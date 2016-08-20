@@ -6,7 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "watch": "NODE_ENV=development babel -w index.js --out-dir dist",
-    "build": "NODE_ENV=production babel index.js --out-dir dist",
+    "build": "NODE_ENV=production babel index.js --minified --out-dir dist",
     "prepublish": "npm build"
   },
   "devDependencies": {
