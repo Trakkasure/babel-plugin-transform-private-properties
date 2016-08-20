@@ -4,11 +4,26 @@
   "description": "Provide private variables using WeakMaps",
   "main": "dist/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "watch": "NODE_ENV=development babel -w index.js --out-dir dist",
     "build": "NODE_ENV=production babel index.js --minified --out-dir dist",
     "prepublish": "npm build"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Trakkasure/babel-plugin-transform-private-properties.git"
+  },
+  "bugs": "https://github.com/Trakkasure/babel-plugin-transform-private-properties/issues",
+  "engines": {
+    "node": ">=4.0.0"
+  },
+  "keywords": [
+    "babel",
+    "private",
+    "class",
+    "transform",
+    "transpile",
+    "weakmap"
+  ],
   "devDependencies": {
     "babel": "^6.5.2",
     "babel-cli": "^6.10.1",
@@ -23,6 +38,6 @@
     "simple-assign": "^0.1.0",
     "uglify-js": ">=1.2.5"
   },
-  "author": "",
-  "license": "ISC"
+  "author": "Brandon Myers",
+  "license": "BSD"
 }
