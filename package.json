@@ -1,6 +1,6 @@
 {
   "name": "babel-plugin-transform-private-properties",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Provide private variables using WeakMaps",
   "main": "dist/index.js",
   "scripts": {
