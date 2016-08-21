@@ -48,7 +48,7 @@ class TestClass {
     }
     @Private
     func1(fromWhere) {
-        console.log("This is the first function called from ",fromWhere);
+        console.log(`This is the first function called from ${fromWhere} with this.p value: `,this.p);
     }
 
     getP() {

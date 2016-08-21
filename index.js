@@ -13,6 +13,7 @@ export default function({types: t}) {
             let body = path.get("body");
             let privateDecorator=null;
             let instanceBody = [];
+            let methods=[];
             const refs = {};
             for (let subPath of body.get("body")) {
               if (subPath.isClassMethod({ kind: "constructor" })) {
@@ -25,26 +26,9 @@ export default function({types: t}) {
                 ));
                 subPath.node.decorators.splice(privateDecorator, 1);
                 // move into constructor
-                instanceBody.push(
-                  t.expressionStatement(
-                    t.callExpression(
-                      t.memberExpression(
-                        id
-                      , t.Identifier('set')
-                      )
-                    , [
-                        t.thisExpression()
-                      , t.functionExpression(
-                          t.Identifier('')
-                        , subPath.node.params
-                        , subPath.node.body
-                        )
-                      ]
-                    )
-                  )
-                );
+
                 refs[subPath.node.key.name]=id;
-                subPath.remove();
+                methods.push(subPath);
               } else if (subPath.isClassProperty() && subPath.node.decorators && subPath.node.decorators.length > 0) {
                 let propNode = subPath.node;
                 const privateDecorator=findPrivateDecorator(propNode);
@@ -98,6 +82,39 @@ export default function({types: t}) {
                 }
                 [constructor] = body.unshiftContainer("body", newConstructor);
               }
+              for(let node of methods) {
+                node.traverse({
+                   ThisExpression(path) {
+                      handleRefItems(t,node,path,refs,t.thisExpression(),[])
+                   }
+                });
+                instanceBody.push(
+                  t.expressionStatement(
+                    t.callExpression(
+                      t.memberExpression(
+                        refs[node.node.key.name]
+                      , t.Identifier('set')
+                      )
+                    , [
+                        t.thisExpression()
+                      , t.callExpression(
+                          t.memberExpression(
+                            t.functionExpression(
+                              t.Identifier('')
+                            , node.node.params
+                            , node.node.body
+                            )
+                          , t.Identifier('bind')
+                          )
+                        , [t.thisExpression()]
+                        )
+                      ]
+                    )
+                  )
+                );
+                node.remove();
+              }
+              methods=[];
               for (let node of body.get("body")) {
                 node.traverse({
                   ThisExpression(path) {
@@ -124,6 +141,26 @@ export default function({types: t}) {
       }
     }
   }
+}
+function cleanJSON (...fields) {
+  var objs=[];
+  var fields = [
+          'loc',
+          'parent',
+          'hub',
+          'contexts',
+          'opts',
+          'parentPath',
+          'container',
+          'parentKey',
+          'parentBlock',
+        ].concat(fields);
+  return function(k,v) {
+    if (fields.indexOf(k)>=0) return "[Object]";
+      if (objs.indexOf(v)>=0) return "[Circular Reference]";
+      if (typeof v === typeof({}) || typeof v === typeof([])) objs.push(v);
+      return v;
+    }
 }
 
 function handleRefItems(t,node,path,refs,refExp,known_vars) {
